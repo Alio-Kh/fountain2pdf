@@ -27,30 +27,49 @@ class FountainToPDF:
         else:
             self.lines = None
 
-        try:
-            font_locations = findSystemFonts()
-            for font in font_locations:
-                if font.endswith("Courier Prime.ttf"):
-                    courier_prime_loc = font
-                elif font.endswith("Courier Prime Bold.ttf"):
-                    courier_prime_bold_loc = font
-                elif font.endswith("Courier Prime Italic.ttf"):
-                    courier_prime_italic_loc = font
-                elif font.endswith("Courier Prime Bold Italic.ttf"):
-                    courier_prime_bold_italic_loc = font
+        # Attempt to locate and register the "Courier Prime" font family. If any
+        # of the required font files cannot be found **or** reportlab fails to
+        # register them, fall back gracefully to the built-in ``Courier`` font
+        # that ships with PDF readers.
 
-            pdfmetrics.registerFont(TTFont('Courier Prime', courier_prime_loc))
-            pdfmetrics.registerFont(TTFont('Courier Prime Bold', courier_prime_bold_loc))
-            pdfmetrics.registerFont(TTFont('Courier Prime Italic', courier_prime_italic_loc))
-            pdfmetrics.registerFont(TTFont('Courier Prime Bold Italic', courier_prime_bold_italic_loc))
-            self.fontname = 'Courier Prime'
-            self.fontname_bold = 'Courier Prime Bold'
-            self.fontname_italic = 'Courier Prime Italic'
-            self.fontname_bold_italic = 'Courier Prime Bold Italic'
-            pdfmetrics.registerFontFamily(self.fontname, normal=self.fontname, bold=self.fontname_bold, italic=self.fontname_italic, boldItalic=self.fontname_bold_italic)
-            print("Using Courier Prime.")
-            
+        courier_prime_loc = None
+        courier_prime_bold_loc = None
+        courier_prime_italic_loc = None
+        courier_prime_bold_italic_loc = None
+
+        font_locations = findSystemFonts()
+        for font in font_locations:
+            if font.endswith("Courier Prime.ttf"):
+                courier_prime_loc = font
+            elif font.endswith("Courier Prime Bold.ttf"):
+                courier_prime_bold_loc = font
+            elif font.endswith("Courier Prime Italic.ttf"):
+                courier_prime_italic_loc = font
+            elif font.endswith("Courier Prime Bold Italic.ttf"):
+                courier_prime_bold_italic_loc = font
+
+        # Only register the family if **all** styles are available; otherwise we
+        # default to the core ``Courier`` font to avoid runtime errors.
+        try:
+            if all([courier_prime_loc, courier_prime_bold_loc, courier_prime_italic_loc, courier_prime_bold_italic_loc]):
+                pdfmetrics.registerFont(TTFont('Courier Prime', courier_prime_loc))
+                pdfmetrics.registerFont(TTFont('Courier Prime Bold', courier_prime_bold_loc))
+                pdfmetrics.registerFont(TTFont('Courier Prime Italic', courier_prime_italic_loc))
+                pdfmetrics.registerFont(TTFont('Courier Prime Bold Italic', courier_prime_bold_italic_loc))
+                self.fontname = 'Courier Prime'
+                self.fontname_bold = 'Courier Prime Bold'
+                self.fontname_italic = 'Courier Prime Italic'
+                self.fontname_bold_italic = 'Courier Prime Bold Italic'
+                pdfmetrics.registerFontFamily(self.fontname,
+                                            normal=self.fontname,
+                                            bold=self.fontname_bold,
+                                            italic=self.fontname_italic,
+                                            boldItalic=self.fontname_bold_italic)
+                print("Using Courier Prime.")
+            else:
+                raise TTFError
         except TTFError:
+            # Fallback to built-in Courier if Courier Prime isn't available.
             self.fontname = 'Courier'
             self.fontname_bold = 'Courier'
             self.fontname_italic = 'Courier'
@@ -403,7 +422,10 @@ class FountainToPDF:
                 token = line[1]
 
                 if not token:
-                    story.append(emptyline)
+                    # Avoid stacking multiple consecutive Spacer instances, which can
+                    # accumulate and overflow the available frame height.
+                    if not story or not isinstance(story[-1], Spacer):
+                        story.append(emptyline)
                 else:
                     style = self.styles.get(token, 'ACTION')
                     p = Paragraph(text, style)

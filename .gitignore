@@ -5,3 +5,7 @@ fountainutils/__pycache__/
 *.pdf
 *.html
 *.fountain
+
+.venv/
+
+__pycache__/
